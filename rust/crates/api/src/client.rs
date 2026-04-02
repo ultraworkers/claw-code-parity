@@ -21,7 +21,7 @@ async fn stream_via_provider<P: Provider>(
 
 #[derive(Debug, Clone)]
 pub enum ProviderClient {
-    Anthropic(AnthropicClient),
+    Anthropic(Box<AnthropicClient>),
     Xai(OpenAiCompatClient),
     OpenAi(OpenAiCompatClient),
 }
@@ -37,10 +37,10 @@ impl ProviderClient {
     ) -> Result<Self, ApiError> {
         let resolved_model = providers::resolve_model_alias(model);
         match providers::detect_provider_kind(&resolved_model) {
-            ProviderKind::Anthropic => Ok(Self::Anthropic(match anthropic_auth {
+            ProviderKind::Anthropic => Ok(Self::Anthropic(Box::new(match anthropic_auth {
                 Some(auth) => AnthropicClient::from_auth(auth),
                 None => AnthropicClient::from_env()?,
-            })),
+            }))),
             ProviderKind::Xai => Ok(Self::Xai(OpenAiCompatClient::from_env(
                 OpenAiCompatConfig::xai(),
             )?)),
@@ -62,7 +62,9 @@ impl ProviderClient {
     #[must_use]
     pub fn with_prompt_cache(self, prompt_cache: PromptCache) -> Self {
         match self {
-            Self::Anthropic(client) => Self::Anthropic(client.with_prompt_cache(prompt_cache)),
+            Self::Anthropic(client) => {
+                Self::Anthropic(Box::new((*client).with_prompt_cache(prompt_cache)))
+            }
             other => other,
         }
     }
@@ -88,7 +90,7 @@ impl ProviderClient {
         request: &MessageRequest,
     ) -> Result<MessageResponse, ApiError> {
         match self {
-            Self::Anthropic(client) => send_via_provider(client, request).await,
+            Self::Anthropic(client) => send_via_provider(client.as_ref(), request).await,
             Self::Xai(client) | Self::OpenAi(client) => send_via_provider(client, request).await,
         }
     }
@@ -98,7 +100,7 @@ impl ProviderClient {
         request: &MessageRequest,
     ) -> Result<MessageStream, ApiError> {
         match self {
-            Self::Anthropic(client) => stream_via_provider(client, request)
+            Self::Anthropic(client) => stream_via_provider(client.as_ref(), request)
                 .await
                 .map(MessageStream::Anthropic),
             Self::Xai(client) | Self::OpenAi(client) => stream_via_provider(client, request)

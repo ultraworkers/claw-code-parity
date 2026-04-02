@@ -407,7 +407,7 @@ async fn provider_client_dispatches_anthropic_requests() {
     .expect("anthropic provider client should be constructed");
     let client = match client {
         ProviderClient::Anthropic(client) => {
-            ProviderClient::Anthropic(client.with_base_url(server.base_url()))
+            ProviderClient::Anthropic(Box::new((*client).with_base_url(server.base_url())))
         }
         other => panic!("expected anthropic provider, got {other:?}"),
     };
