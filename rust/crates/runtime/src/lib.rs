@@ -1,4 +1,5 @@
 mod bash;
+pub mod bash_validation;
 mod bootstrap;
 mod compact;
 mod config;
