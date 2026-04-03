@@ -109,13 +109,13 @@ fn normalize_lines(summary: &str, max_line_chars: usize) -> NormalizedSummary {
             continue;
         }
 
-        let truncated = truncate_line(&normalized, max_line_chars);
-        let dedupe_key = dedupe_key(&truncated);
+        let dedupe_key = dedupe_key(&normalized);
         if !seen.insert(dedupe_key) {
             removed_duplicate_lines += 1;
             continue;
         }
 
+        let truncated = truncate_line(&normalized, max_line_chars);
         lines.push(truncated);
     }
 
@@ -207,7 +207,17 @@ fn omission_notice(omitted_lines: usize) -> String {
 }
 
 fn collapse_inline_whitespace(line: &str) -> String {
-    line.split_whitespace().collect::<Vec<_>>().join(" ")
+    let trimmed_start = line.trim_start_matches(char::is_whitespace);
+    if trimmed_start.is_empty() {
+        return String::new();
+    }
+
+    let indent = &line[..line.len() - trimmed_start.len()];
+    let collapsed = trimmed_start
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ");
+    format!("{indent}{collapsed}")
 }
 
 fn truncate_line(line: &str, max_chars: usize) -> String {
@@ -284,6 +294,40 @@ mod tests {
             .summary
             .contains("- Current work: finish summary compression."));
         assert!(result.omitted_lines > 0);
+    }
+
+    #[test]
+    fn keeps_distinct_long_lines_that_share_a_truncated_prefix() {
+        // given
+        let repeated_prefix = "- Current work: ".to_string() + &"x".repeat(180);
+        let summary = format!("Conversation summary:\n{repeated_prefix} A\n{repeated_prefix} B");
+
+        // when
+        let result = compress_summary(
+            &summary,
+            SummaryCompressionBudget {
+                max_chars: 400,
+                max_lines: 8,
+                max_line_chars: 80,
+            },
+        );
+
+        // then
+        assert_eq!(result.removed_duplicate_lines, 0);
+        assert_eq!(result.summary.lines().count(), 3);
+    }
+
+    #[test]
+    fn preserves_nested_bullet_indentation() {
+        // given
+        let summary = "Conversation summary:\n  - user: first item\n  - assistant: second item";
+
+        // when
+        let result = compress_summary(summary, SummaryCompressionBudget::default());
+
+        // then
+        assert!(result.summary.contains("\n  - user: first item"));
+        assert!(result.summary.contains("\n  - assistant: second item"));
     }
 
     #[test]
