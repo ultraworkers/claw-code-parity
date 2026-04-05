@@ -7,8 +7,10 @@ use crate::types::{MessageRequest, MessageResponse};
 pub mod anthropic;
 pub mod openai_compat;
 
+#[allow(dead_code)]
 pub type ProviderFuture<'a, T> = Pin<Box<dyn Future<Output = Result<T, ApiError>> + Send + 'a>>;
 
+#[allow(dead_code)]
 pub trait Provider {
     type Stream;
 
